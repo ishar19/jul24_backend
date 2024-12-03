@@ -5,8 +5,22 @@ const dotenv = require("dotenv");
 const authMiddleware = require("../middleware/auth");
 dotenv.config();
 
+// /?limit=10&offset=1       offset,page,skip     limit,size,pageSize,count
 router.get("/", async (req, res) => {
-    const jobs = await Job.find();
+    const { limit, offset, salary, name } = req.query;
+    // get me jobs with salary between 200 and 300
+    // const jobs = await Job.find({ salary: { $gte: 200, $lte: 300 } }).skip(offset).limit(limit);
+    // get me jobs with salary = salary
+    // const jobs = await Job.find({ salary }).skip(offset).limit(limit);
+    // get me jobs which includes comopany name with name and salary = salary
+    // const jobs = await Job.find({ companyName: name, salary }).skip(offset).limit(limit);  // will exactly match the name
+
+    // jobs company name should contain name   // Book book BOOK bOOK
+    // const jobs = await Job.find({ companyName: { $regex: name, $options: "i" } }).skip(offset).limit(limit);
+
+    // jobs company name should contain name and salary = salary
+    const jobs = await Job.find({ companyName: { $regex: name, $options: "i" }, salary }).skip(offset).limit(limit);
+    // const jobs = await Job.find().skip(offset).limit(limit);
     res.status(200).json(jobs);
 })
 
@@ -86,3 +100,9 @@ module.exports = router;
 // Pagination
 // Searching 
 // Filtering 
+
+
+// Homework 
+// make as sophisticated and complex filtering and searching as you can
+// for ex: make it so that it can search by company name and job position and  salary and job type
+// for ex: make it so that it can search by company name or job position or  salary or job type

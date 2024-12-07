@@ -6,7 +6,9 @@ const dotenv = require("dotenv");
 const bodyParser = require("body-parser");
 const userRoute = require("./routes/user");
 const jobRoute = require("./routes/job");
+const cors = require("cors");
 dotenv.config();
+app.use(cors());
 const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {

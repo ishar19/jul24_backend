@@ -7,9 +7,10 @@ const bodyParser = require("body-parser");
 const userRoute = require("./routes/user");
 const jobRoute = require("./routes/job");
 const cors = require("cors");
+const connectDB = require('./db/db');
 dotenv.config();
 app.use(cors());
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 6000;
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "try.html"));
@@ -20,14 +21,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use("/api/user", userRoute);
 app.use("/api/job", jobRoute);
-app.listen(PORT, () => {
-    console.log("Server is running on port 3000");
-    mongoose.connect(process.env.MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    }).then(() => {
-        console.log("MongoDB connected");
-    }).catch((err) => {
-        console.log(err);
+
+
+
+connectDB().then(() => {
+    app.listen(PORT, (err) => {
+        if (err) {
+            console.log(err);
+        }
+        console.log(`Server is running successfully on port: ${PORT}`);
     });
+}).catch((err) => {
+    console.error(err);
 });
+

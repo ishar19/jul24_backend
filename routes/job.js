@@ -1,116 +1,185 @@
 const express = require("express");
 const router = express.Router();
-const Job = require("../schema/job.schema");
 const dotenv = require("dotenv");
-const authMiddleware = require("../middleware/auth");
+
+const Job = require("../schema/job.schema");
+const auth = require("../middleware/auth");
+const { default: mongoose } = require("mongoose");
+
+
 dotenv.config();
 
-// /?limit=10&offset=1       offset,page,skip     limit,size,pageSize,count
-router.get("/", async (req, res) => {
-    const { limit, offset, salary, name } = req.query;
-    // mongodb query
-    const query = {};
-    if (salary) {
-        query.salary = { $gte: salary, $lte: salary };
-    }
-    if (name) {
-        query.companyName = { $regex: name, $options: "i" };
-    }
-    const jobs = await Job.find(query).skip(offset || 0).limit(limit || 10);
-    // get me jobs with salary between 200 and 300
-    // const jobs = await Job.find({ salary: { $gte: 200, $lte: 300 } }).skip(offset).limit(limit);
-    // get me jobs with salary = salary
-    // const jobs = await Job.find({ salary }).skip(offset).limit(limit);
-    // get me jobs which includes comopany name with name and salary = salary
-    // const jobs = await Job.find({ companyName: name, salary }).skip(offset).limit(limit);  // will exactly match the name
 
-    // jobs company name should contain name   // Book book BOOK bOOK
-    // const jobs = await Job.find({ companyName: { $regex: name, $options: "i" } }).skip(offset).limit(limit);
+router.get('/', async (req, res) => {
+    const {limit, offset, q, jobPosition, minSalary, maxSalary, jobType, remoteOffice, skillsRequired } = req.query;
 
-    // jobs company name should contain name and salary = salary
-    // const jobs = await Job.find().skip(offset).limit(limit);
-    res.status(200).json(jobs);
-})
+
+    let searchConditions = [];
+    if (q) {
+        const keywords = q.split(' ');
+        keywords.forEach(keyword => {
+            searchConditions.push(
+                { companyName: {$regex: new RegExp(keyword, 'i')}},
+                {jobPosition: {$regex: new RegExp(keyword, 'i')}},
+                {location: {$regex: new RegExp(keyword, 'i')}}
+            );
+        });
+    };
+
+
+    const filters = {
+        ...(searchConditions.length > 0 && {$or:searchConditions}),
+        ...(jobType && {jobType}),
+        ...(jobPosition && {jobPosition}),
+        ...((minSalary && !maxSalary) && {salary: { $gte: Number(minSalary)}}),
+        ...((!minSalary && maxSalary) && {salary: { $lte: Number(maxSalary)}}),
+        ...((minSalary && maxSalary) && {salary: {$gte: Number(minSalary), $lte: Number(maxSalary)}}),
+        ...(remoteOffice && {remoteOffice}),
+        ...(skillsRequired && {skillsRequired: { $in: skillsRequired.split(',') }}),
+    }
+
+    const jobs = await Job.find(filters).skip(Number(offset) || 0).limit(Number(limit) || 0);
+    return res.status(200).json(jobs);
+});
+
+
 
 router.get("/:id", async (req, res) => {
     const { id } = req.params;
-    const job = await Job.findById(id);
-    if (!job) {
-        return res.status(404).json({ message: "Job not found" });
+    
+    if (!mongoose.Types.ObjectId.isValid(id)){
+        return res.status(404).json({ message: "Invalid job id" });
     }
-    res.status(200).json(job);
+    
+    try{
+        const job = await Job.findOne({_id: id});
+        if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+        res.status(200).json(job);
+    } catch (err) {
+        return res.status(400).json({message: "Error fetching job details", err});
+    }
 })
 
-router.delete("/:id", authMiddleware, async (req, res) => {
-    const { id } = req.params;
+
+
+router.delete('/:id', auth,  async (req, res) => {
+    const {id} = req.params;
     const job = await Job.findById(id);
     const userId = req.user.id;
 
-    if (!job) {
-        return res.status(404).json({ message: "Job not found" });
-    }
-    if (userId !== job.user.toString()) {   // check if the user is the owner of the job
-        return res.status(401).json({ message: "You are not authorized to delete this job" });
-    }
-    await Job.deleteOne({ _id: id });
-    res.status(200).json({ message: "Job deleted" });
-})
+    if(!job){
+        return res.status(400).json({message: "Job not found"});
+    };
 
-router.post("/", authMiddleware, async (req, res) => {
-    const { companyName, jobPosition, salary, jobType } = req.body;
-    if (!companyName || !jobPosition || !salary || !jobType) {
-        return res.status(400).json({ message: "Missing required fields" });
+    if (userId !== job.user.toString()){
+        return res.status(400).json({message: "Not authorized to delete"})
     }
+
+        await Job.findByIdAndDelete(id);
+        return res.status(200).json({message: "Job deleted successfully"});
+
+});
+
+router.post('/', auth, async (req, res) => {
+    const {
+        companyName,
+        logoUrl,
+        jobPosition,
+        salary,
+        jobType,
+        remoteOffice,
+        location,
+        jobDescription,
+        companyDescription,
+        skillsRequired,
+        additionalInfo
+      } = req.body;
+
+      if ( !companyName ||
+        !logoUrl ||
+        !jobPosition ||
+        !salary ||
+        !jobType ||
+        !remoteOffice ||
+        !location ||
+        !jobDescription ||
+        !companyDescription  ||
+        !skillsRequired) {
+            return res.status(400).json({message: "Missing required fields"});
+        }
+        console.log("Logged-in user ID:", req.user.id);
+
     try {
-        const user = req.user;
+        const userID = req.user.id;
         const job = await Job.create({
             companyName,
+            logoUrl,
             jobPosition,
             salary,
             jobType,
-            user: user.id,
+            remoteOffice,
+            location,
+            jobDescription,
+            companyDescription,
+            skillsRequired,
+            additionalInfo,
+            user: userID
         });
-        res.status(200).json(job);
+
+        return res.status(200).json({message: "Job created successfully"});
     } catch (err) {
-        console.log(err);
-        res.status(500).json({ message: "Error in creating job" });
+        console.log(err)
+        return res.status(400).json({message: "Error in creating job :", err: err});
     }
+});
 
-})
 
-router.put("/:id", authMiddleware, async (req, res) => {
-    const { id } = req.params;
-    const { companyName, jobPosition, salary, jobType } = req.body;
+router.put("/:id", auth, async (req, res) => {
+    const {id} = req.params;
+    const {
+        companyName,
+        logoUrl,
+        jobPosition,
+        salary,
+        jobType,
+        remoteOffice,
+        location,
+        jobDescription,
+        companyDescription,
+        skillsRequired,
+        additionalInfo,
+      } = req.body;
+
     const job = await Job.findById(id);
-    if (!job) {
-        return res.status(404).json({ message: "Job not found" });
+
+    if (!job){
+        return res.status(400).json({message : "Job not found"});
     }
-    if (job.user.toString() !== req.user.id) {   // check if the user is the owner of the job
-        return res.status(401).json({ message: "You are not authorized to update this job" });
+    if (req.user.id !== job.user.toString()){
+        return res.status(400).json({message : "Not authorized to edit this job"});
     }
+
     try {
         await Job.findByIdAndUpdate(id, {
             companyName,
+            logoUrl,
             jobPosition,
             salary,
             jobType,
-        });
-        res.status(200).json({ message: "Job updated" });
+            remoteOffice,
+            location,
+            jobDescription,
+            companyDescription,
+            skillsRequired,
+            additionalInfo,
+          });
+        return res.status(200).json({message: "Job updated successfully"});
+
     } catch (err) {
-        console.log(err);
-        res.status(500).json({ message: "Error in updating job" });
+        return res.status(400).json({message: "Error in updating job"});
     }
 })
 
 module.exports = router;
-
-
-// Pagination
-// Searching 
-// Filtering 
-
-
-// Homework 
-// make as sophisticated and complex filtering and searching as you can
-// for ex: make it so that it can search by company name and job position and  salary and job type
-// for ex: make it so that it can search by company name or job position or  salary or job type

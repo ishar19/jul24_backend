@@ -9,9 +9,13 @@ dotenv.config();
 
 router.post("/register", async (req, res) => {
     const { name, email, password, mobile } = req.body;
-    const isUserExist = await User.findOne({ email });
-    if (isUserExist) {
-        return res.status(400).json({ message: "User already exist" });
+    const isEmailRegistered = await User.findOne({email});
+    const isMobileResgistered = await User.findOne({mobile});
+
+    if (isEmailRegistered) {
+        return res.status(400).json("Email is already registered !!");
+    } else if (isMobileResgistered) {
+        return res.status(400).json("Mobile is already registered !!");
     }
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -22,21 +26,26 @@ router.post("/register", async (req, res) => {
             password: hashedPassword,
             mobile,
         });
+
+        await user.save();
+
         res.status(200).json({ message: "User created" });
     } catch (err) {
         console.log(err);
         res.status(500).json({ message: "Error in creating user" });
     }
 })
+
+
 router.post("/login", async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) {
-        return res.status(400).json({ message: "Wrong username or password" });
+        return res.status(404).json({message: "Email Id not registered !!"});
     }
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
-        return res.status(400).json({ message: "Wrong username or password" });
+        return res.status(400).json({ message: "Incorrect Password !!" });
     }
     const payload = {
         id: user._id,
@@ -47,6 +56,3 @@ router.post("/login", async (req, res) => {
 module.exports = router;
 
 
-
-// read about JWTs authentication method  (https://auth0.com/docs/secure/tokens/json-web-tokens)
-// do login and register

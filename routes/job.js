@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const JobModel = require("../models/job.schema");                   //changed the 'Job' model name to "JobbModel" name
+const Job = require("../models/job.schema");
 const dotenv = require("dotenv");
 const authMiddleware = require("../middleware/auth");
 dotenv.config();
@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
     if (name) {
         query.companyName = { $regex: name, $options: "i" };
     }
-    const jobs = await JobModel.find(query).skip(offset || 0).limit(limit || 10);
+    const jobs = await Job.find(query).skip(offset || 0).limit(limit || 10);
     // get me jobs with salary between 200 and 300
     // const jobs = await Job.find({ salary: { $gte: 200, $lte: 300 } }).skip(offset).limit(limit);
     // get me jobs with salary = salary
@@ -36,7 +36,7 @@ router.get("/", async (req, res) => {
 //          get the single job data
 router.get("/:id", async (req, res) => {
     const { id } = req.params;
-    const job = await JobModel.findById(id);
+    const job = await Job.findById(id);
     if (!job) {
         return res.status(404).json({ message: "Job not found" });
     }
@@ -54,7 +54,7 @@ router.post("/", authMiddleware, async (req, res) => {
         //              retrieve user from the verified token
         const user = req.user;
         //              create a new job
-        const newJob = new JobModel({
+        const newJob = new Job({
             companyName,
             addLogoUrl,
             jobPosition,
@@ -80,7 +80,7 @@ router.post("/", authMiddleware, async (req, res) => {
 router.put("/:id", authMiddleware, async (req, res) => {
     const {id} = req.params;
     const {companyName, addLogoUrl, jobPosition, monthlySalary, jobType, jobNature, location, jobDescription, aboutCompany, skillsRequired, information} = req.body;
-    const job = await JobModel.findById(id);                //search the job posted by its id 
+    const job = await Job.findById(id);                //search the job posted by its id 
     //      check if the job post is present or not
     if(!job) {
         return res.status(404).json({message: "Job not found"});
@@ -90,7 +90,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
         res.status(401).json({message: "You are not authorized to modify this job"});
     };
     try {
-        await JobModel.findByIdAndUpdate(id, {
+        await Job.findByIdAndUpdate(id, {
             companyName,
             addLogoUrl,
             jobPosition,
@@ -113,7 +113,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
 //                                      delete the job
 router.delete('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;                          //retreive the id from the req params 
-    const job = await JobModel.findById(id);            //search the job from the db by its id
+    const job = await Job.findById(id);            //search the job from the db by its id
     //                  assigning the req user id to the userId 
     const userId = req.user.id;
     //                  check if the job is present or not
@@ -125,7 +125,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         return res.status(401).json({ message: "You are not authorized to delete this job" });
     }
     // 
-    await JobModel.deleteOne({ _id: id });
+    await Job.deleteOne({ _id: id });
     res.status(200).json({ message: "Job deleted" });
 });
 

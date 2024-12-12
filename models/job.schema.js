@@ -41,8 +41,7 @@ const JobSchema = new mongoose.Schema({
     },
     skillsRequired: {
         type: [String],
-        required: true,
-        enum: ['React', 'JavaScript', 'HTML', 'CSS', 'MongoDB', 'Express']
+        required: true
     },
     information: {
         type: String,

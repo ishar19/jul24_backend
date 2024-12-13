@@ -7,7 +7,8 @@ dotenv.config();
 
 // /?limit=10&offset=1       offset,page,skip     limit,size,pageSize,count
 router.get("/", async (req, res) => {
-    const { limit, offset, salary, name } = req.query;
+
+    const { limit, offset, salary, name, skills } = req.query;
     // mongodb query
     const query = {};
     if (salary) {
@@ -15,6 +16,12 @@ router.get("/", async (req, res) => {
     }
     if (name) {
         query.companyName = { $regex: name, $options: "i" };
+    }
+    if (skills) {
+        // all skills must be in the skills array
+        // query.skills = { $all: skills.split(",") };     // works likes and operator
+        // at least one skill must be in the skills array
+        query.skills = { $in: skills.split(",") };   // works like or operator
     }
     const jobs = await Job.find(query).skip(offset || 0).limit(limit || 50);
     const count = await Job.countDocuments(query);
@@ -56,12 +63,13 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     await Job.deleteOne({ _id: id });
     res.status(200).json({ message: "Job deleted" });
 })
-
+// css,js,html,node,react
 router.post("/", authMiddleware, async (req, res) => {
-    const { companyName, jobPosition, salary, jobType } = req.body;
-    if (!companyName || !jobPosition || !salary || !jobType) {
+    const { companyName, jobPosition, salary, jobType, skills } = req.body;
+    if (!companyName || !jobPosition || !salary || !jobType || !skills) {
         return res.status(400).json({ message: "Missing required fields" });
     }
+    const skillsArray = skills.split(",").map((skill) => skill.trim());
     try {
         const user = req.user;
         const job = await Job.create({
@@ -69,6 +77,7 @@ router.post("/", authMiddleware, async (req, res) => {
             jobPosition,
             salary,
             jobType,
+            skills: skillsArray,
             user: user.id,
         });
         res.status(200).json(job);

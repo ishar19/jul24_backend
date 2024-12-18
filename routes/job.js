@@ -16,7 +16,7 @@ const sanitize = (keyword) => {
 }
 
 router.get('/', async (req, res) => {
-    const {limit, offset, q, jobPosition, minSalary, maxSalary, jobType, remoteOffice, skillsRequired } = req.query;
+    const {limit, offset, q, jobPosition, minSalary, maxSalary, jobType, remoteOffice, skills } = req.query;
 
     let searchConditions = [];
     if (q) {
@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
         ...((!minSalary && maxSalary) && {salary: { $lte: Number(maxSalary)}}),
         ...((minSalary && maxSalary) && {salary: {$gte: Number(minSalary), $lte: Number(maxSalary)}}),
         ...(remoteOffice && {remoteOffice: {$regex: new RegExp(`^${remoteOffice}$`, 'i')}}),
-        ...(skillsRequired && {skillsRequired: { $in: skillsRequired.split(',').map(skill => skill.trim()) }}),
+        ...(skills && {skills: { $in: skills.split(',').map(skill => skill.trim()) }}),
     }
     console.log(filters);
     const jobs = await Job.find(filters).skip(Number(offset) || 0).limit(Number(limit));

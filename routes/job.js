@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
         ...(remoteOffice && {remoteOffice: {$regex: new RegExp(`^${remoteOffice}$`, 'i')}}),
         ...(skillsRequired && {skillsRequired: { $in: skillsRequired.split(',').map(skill => skill.trim()) }}),
     }
-
+    console.log(filters);
     const jobs = await Job.find(filters).skip(Number(offset) || 0).limit(Number(limit));
     const count =await Job.countDocuments(filters);
     return res.status(200).json({jobs, count});

@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const dotenv = require("dotenv");
 
+const Skill = require("../schema/skills.schema");
+const JobPosition = require('../schema/jobPosition.schema');
 const Job = require("../schema/job.schema");
 const auth = require("../middleware/auth");
 const { default: mongoose } = require("mongoose");
@@ -9,19 +11,22 @@ const { default: mongoose } = require("mongoose");
 
 dotenv.config();
 
+const sanitize = (keyword) => {
+    return keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 router.get('/', async (req, res) => {
     const {limit, offset, q, jobPosition, minSalary, maxSalary, jobType, remoteOffice, skillsRequired } = req.query;
-
 
     let searchConditions = [];
     if (q) {
         const keywords = q.split(' ');
         keywords.forEach(keyword => {
+            const sanitized = sanitize(keyword);
             searchConditions.push(
                 { companyName: {$regex: new RegExp(keyword, 'i')}},
                 {jobPosition: {$regex: new RegExp(keyword, 'i')}},
-                {location: {$regex: new RegExp(keyword, 'i')}}
+                {location: {$regex: new RegExp(keyword, 'i')}},
             );
         });
     };
@@ -29,17 +34,18 @@ router.get('/', async (req, res) => {
 
     const filters = {
         ...(searchConditions.length > 0 && {$or:searchConditions}),
-        ...(jobType && {jobType}),
-        ...(jobPosition && {jobPosition}),
+        ...(jobType && {jobType: {$regex: new RegExp(`^${jobType}$`, 'i')}}),
+        ...(jobPosition && {jobPosition: {$regex: new RegExp(`^${jobPosition}$`, 'i')}}),
         ...((minSalary && !maxSalary) && {salary: { $gte: Number(minSalary)}}),
         ...((!minSalary && maxSalary) && {salary: { $lte: Number(maxSalary)}}),
         ...((minSalary && maxSalary) && {salary: {$gte: Number(minSalary), $lte: Number(maxSalary)}}),
-        ...(remoteOffice && {remoteOffice}),
-        ...(skillsRequired && {skillsRequired: { $in: skillsRequired.split(',') }}),
+        ...(remoteOffice && {remoteOffice: {$regex: new RegExp(`^${remoteOffice}$`, 'i')}}),
+        ...(skillsRequired && {skillsRequired: { $in: skillsRequired.split(',').map(skill => skill.trim()) }}),
     }
 
-    const jobs = await Job.find(filters).skip(Number(offset) || 0).limit(Number(limit) || 0);
-    return res.status(200).json(jobs);
+    const jobs = await Job.find(filters).skip(Number(offset) || 0).limit(Number(limit));
+    const count =await Job.countDocuments(filters);
+    return res.status(200).json({jobs, count});
 });
 
 
@@ -109,10 +115,25 @@ router.post('/', auth, async (req, res) => {
         !skillsRequired) {
             return res.status(400).json({message: "Missing required fields"});
         }
-        console.log("Logged-in user ID:", req.user.id);
+
 
     try {
         const userID = req.user.id;
+
+        for (const skill of skillsRequired) {
+            const existingSkill = await Skill.findOne({skills: skill});
+            if (!existingSkill) {
+                await Skill.create({skills: skill});
+            }
+        }
+
+        if(jobPosition){
+            const existingPosition = await JobPosition.findOne({positionNames: jobPosition});
+            if (!existingPosition) {
+                await JobPosition.create({positionNames: jobPosition});
+            }
+        }
+
         const job = await Job.create({
             companyName,
             logoUrl,
